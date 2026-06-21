@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fabric Sizing & Cost Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .slider-thumb::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #2563eb;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 flex justify-center items-center min-h-screen">
+
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-4xl p-6 md:p-10">
+        <div class="mb-8">
+            <h1 class="text-2xl font-bold text-gray-800">Microsoft Fabric Sizing Calculator</h1>
+            <p class="text-gray-500 text-sm mt-1">Estimate AUD costs based on storage and compute concurrency.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+            
+            <!-- Controls -->
+            <div class="space-y-6">
+                <!-- Total Data -->
+                <div>
+                    <label class="flex justify-between text-sm font-medium text-gray-700 mb-1">
+                        <span>Total Data Volume (At Rest)</span>
+                        <span id="dataVolVal" class="text-blue-600 font-bold">2000 TB</span>
+                    </label>
+                    <input type="range" id="dataVol" min="100" max="5000" step="100" value="200" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-thumb">
+                </div>
+
+                <!-- 15 Min Refresh -->
+                <div>
+                    <label class="flex justify-between text-sm font-medium text-gray-700 mb-1">
+                        <span>15-Minute Refresh Volume</span>
+                        <span id="min15Val" class="text-blue-600 font-bold">100 TB</span>
+                    </label>
+                    <input type="range" id="min15Vol" min="0" max="500" step="10" value="10" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-thumb">
+                </div>
+
+                <!-- Daily Refresh -->
+                <div>
+                    <label class="flex justify-between text-sm font-medium text-gray-700 mb-1">
+                        <span>Daily Refresh Volume</span>
+                        <span id="dailyVal" class="text-blue-600 font-bold">666 TB</span>
+                    </label>
+                    <input type="range" id="dailyVol" min="0" max="2000" step="10" value="66.6" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-thumb">
+                </div>
+
+                <!-- Concurrent Jobs -->
+                <div>
+                    <label class="flex justify-between text-sm font-medium text-gray-700 mb-1">
+                        <span>Peak Concurrent Jobs</span>
+                        <span id="jobsVal" class="text-blue-600 font-bold">1000</span>
+                    </label>
+                    <input type="range" id="jobs" min="10" max="2000" step="10" value="1000" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-thumb">
+                </div>
+
+                <!-- Refresh Strategy -->
+                <div class="pt-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">15-Min Refresh Strategy</label>
+                    <select id="strategy" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
+                        <option value="incremental" selected>Incremental (CDC / Delta Merge)</option>
+                        <option value="full">Full Load (Truncate & Load)</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Compute SKU</label>
+                        <select id="sku" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
+                            <option value="F256">F256 (256 CUs)</option>
+                            <option value="F512" selected>F512 (512 CUs)</option>
+                            <option value="F1024">F1024 (1024 CUs)</option>
+                            <option value="F2048">F2048 (2048 CUs)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Pricing Model</label>
+                        <select id="pricing" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
+                            <option value="reserved" selected>1-Year Reserved</option>
+                            <option value="payg">Pay-As-You-Go</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Output -->
+            <div class="bg-gray-50 rounded-xl p-6 flex flex-col justify-between border border-gray-100">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-800 mb-4">Estimated Monthly Cost (AUD)</h2>
+                    
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-gray-600 text-sm">OneLake Storage Cost</span>
+                        <span id="storageCostDisplay" class="font-semibold text-gray-800">$0</span>
+                    </div>
+                    <div class="flex justify-between items-center mb-6 pb-6 border-b border-gray-200">
+                        <span class="text-gray-600 text-sm">Fabric Compute Cost</span>
+                        <span id="computeCostDisplay" class="font-semibold text-gray-800">$0</span>
+                    </div>
+                    
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-800 font-bold text-lg">Total Cost</span>
+                        <span id="totalCostDisplay" class="font-bold text-3xl text-blue-600">$0</span>
+                    </div>
+                </div>
+
+                <div id="warnings" class="mt-8 space-y-3">
+                    <!-- Warnings injected via JS -->
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Constants & Pricing (AUD)
+        const STORAGE_COST_PER_GB = 0.039; // Approx AUD
+        const COMPUTE_PRICING = {
+            "F256": { reserved: 34000, payg: 57000 },
+            "F512": { reserved: 68000, payg: 114000 },
+            "F1024": { reserved: 135000, payg: 228000 },
+            "F2048": { reserved: 270000, payg: 456000 }
+        };
+
+        // DOM Elements
+        const inputs = {
+            dataVol: document.getElementById('dataVol'),
+            min15Vol: document.getElementById('min15Vol'),
+            dailyVol: document.getElementById('dailyVol'),
+            jobs: document.getElementById('jobs'),
+            sku: document.getElementById('sku'),
+            pricing: document.getElementById('pricing'),
+            strategy: document.getElementById('strategy')
+        };
+        const displays = {
+            dataVolVal: document.getElementById('dataVolVal'),
+            min15Val: document.getElementById('min15Val'),
+            dailyVal: document.getElementById('dailyVal'),
+            jobsVal: document.getElementById('jobsVal'),
+            storageCost: document.getElementById('storageCostDisplay'),
+            computeCost: document.getElementById('computeCostDisplay'),
+            totalCost: document.getElementById('totalCostDisplay'),
+            warnings: document.getElementById('warnings')
+        };
+
+        function formatCurrency(num) {
+            return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(num);
+        }
+
+        function generateWarning(text, type = 'yellow') {
+            const colors = {
+                yellow: 'bg-yellow-50 text-yellow-800 border-yellow-200',
+                red: 'bg-red-50 text-red-800 border-red-200',
+                blue: 'bg-blue-50 text-blue-800 border-blue-200'
+            };
+            return `
+                <div class="p-3 text-sm border rounded-lg ${colors[type]}">
+                    <strong>Notice:</strong> ${text}
+                </div>
+            `;
+        }
+
+        function calculate() {
+            // Get Values
+            const dataTB = parseInt(inputs.dataVol.value);
+            const min15TB = parseInt(inputs.min15Vol.value);
+            const jobsCount = parseInt(inputs.jobs.value);
+            const skuVal = inputs.sku.value;
+            const pricingVal = inputs.pricing.value;
+            const strategyVal = inputs.strategy.value;
+
+            // Update Labels
+            displays.dataVolVal.innerText = `${dataTB} TB`;
+            displays.min15Val.innerText = `${min15TB} TB`;
+            displays.dailyVal.innerText = `${inputs.dailyVol.value} TB`;
+            displays.jobsVal.innerText = jobsCount;
+
+            // Calculations
+            const storageGB = dataTB * 1024;
+            const storageCost = storageGB * STORAGE_COST_PER_GB;
+            const computeCost = COMPUTE_PRICING[skuVal][pricingVal];
+            const totalCost = storageCost + computeCost;
+
+            // Update UI
+            displays.storageCost.innerText = formatCurrency(storageCost);
+            displays.computeCost.innerText = formatCurrency(computeCost);
+            displays.totalCost.innerText = formatCurrency(totalCost);
+
+            // Logic Warnings
+            let warningHTML = '';
+            
+            if (min15TB > 20) {
+                if (strategyVal === 'incremental') {
+                    warningHTML += generateWarning(`With Incremental/CDC logic, targeting ${min15TB}TB of tables is highly efficient. The actual data processed is minimal, making ${skuVal} a safe choice.`, 'blue');
+                } else {
+                    if (skuVal === 'F256' || skuVal === 'F512') {
+                        warningHTML += generateWarning(`A Full Load of ${min15TB}TB every 15 mins is ~${(min15TB*1024/15/60).toFixed(1)} GB/s. A ${skuVal} will fail under this physical I/O load.`, 'red');
+                    } else {
+                        warningHTML += generateWarning(`A Full Load of ${min15TB}TB every 15 mins requires massive I/O. Expect high CU burn and potential throttling on a ${skuVal}.`, 'yellow');
+                    }
+                }
+            }
+
+            if (jobsCount > 500) {
+                warningHTML += generateWarning(`Running ${jobsCount} concurrent jobs requires Spark Session sharing (High Concurrency Mode) to avoid hitting the Fabric ${skuVal} queue limit.`, 'blue');
+            }
+
+            if (warningHTML === '') {
+                warningHTML = generateWarning('Architecture metrics look balanced for standard operations.', 'blue');
+            }
+
+            displays.warnings.innerHTML = warningHTML;
+        }
+
+        // Event Listeners
+        Object.values(inputs).forEach(input => {
+            input.addEventListener('input', calculate);
+        });
+
+        // Initial Calc
+        calculate();
+    </script>
+</body>
+</html>
