@@ -18,7 +18,7 @@ Zero Dependencies: Runs entirely in the browser using a single HTML file styled 
 
 How to Run
 
-Download or clone the calculator.html file.
+Download or clone the index.html file.
 
 Double-click the file to open it in any modern web browser (Chrome, Edge, Firefox, Safari).
 
